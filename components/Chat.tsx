@@ -23,7 +23,8 @@ export default function Chat({ canalId }: { canalId: string }) {
     return () => { supabase.removeChannel(ch) }
   }, [canalId])
 
-  useEffect(() => { fin.current?.scrollIntoView({ block: 'end' }) }, [msgs])
+  // Scrollea solo la caja del chat (scrollIntoView movía toda la página)
+  useEffect(() => { const c = fin.current?.parentElement; if (c) c.scrollTop = c.scrollHeight }, [msgs])
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault()

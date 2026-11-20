@@ -4,10 +4,15 @@ import type { Canal } from '@/lib/data'
 
 export const dynamic = 'force-dynamic'
 
-export default async function Home() {
+export default async function Home({ searchParams }: { searchParams: Promise<{ q?: string; tipo?: string }> }) {
+  const { q = '', tipo = '' } = await searchParams
   let canales: Canal[] = []
   if (supabaseListo) {
-    const { data } = await supabase.from('canales').select('*').order('en_vivo', { ascending: false }).order('creado', { ascending: false }).limit(60)
+    let query = supabase.from('canales').select('*').order('en_vivo', { ascending: false }).order('creado', { ascending: false }).limit(60)
+    if (tipo === 'tienda' || tipo === 'persona') query = query.eq('tipo', tipo)
+    const term = q.replace(/[%,()]/g, ' ').trim().slice(0, 40)
+    if (term) query = query.or(`nombre.ilike.%${term}%,ciudad.ilike.%${term}%,descripcion.ilike.%${term}%`)
+    const { data } = await query
     canales = (data as Canal[]) || []
   }
   const envivo = canales.filter((c) => c.en_vivo)
@@ -26,8 +31,16 @@ export default async function Home() {
         <Link href="/panel" className="inline-block mt-5 bg-brand hover:bg-brand-dark px-6 py-3 rounded-full font-bold">Crear mi tienda o canal</Link>
       </section>
 
+      <form className="flex gap-2 mb-6 max-w-xl mx-auto">
+        <input name="q" defaultValue={q} placeholder="Buscar tienda, rubro o ciudad..." className="flex-1 bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm outline-none" />
+        <select name="tipo" defaultValue={tipo} className="bg-white/5 border border-white/10 rounded-full px-3 text-sm">
+          <option value="">Todos</option><option value="tienda">Tiendas</option><option value="persona">Personas</option>
+        </select>
+        <button className="bg-brand px-4 rounded-full text-sm font-semibold">Buscar</button>
+      </form>
+
       {!supabaseListo && <p className="text-center text-amber-400 text-sm">Falta configurar Supabase (.env.local) para ver canales.</p>}
-      {supabaseListo && canales.length === 0 && <p className="text-center text-zinc-400">Todavía no hay canales. ¡Sé el primero!</p>}
+      {supabaseListo && canales.length === 0 && <p className="text-center text-zinc-400">{q || tipo ? 'No encontramos canales con esa búsqueda.' : 'Todavía no hay canales. ¡Sé el primero!'}</p>}
 
       {envivo.length > 0 && (<>
         <h2 className="text-lg font-bold mb-3">🔴 En vivo ahora</h2>
@@ -44,8 +57,11 @@ export default async function Home() {
 function Tarjeta({ c }: { c: Canal }) {
   return (
     <Link href={`/${c.slug}`} className="block rounded-xl bg-white/5 hover:bg-white/10 p-4 border border-white/10">
-      <div className="aspect-video rounded-lg bg-gradient-to-br from-brand/40 to-zinc-900 flex items-center justify-center text-4xl mb-3 relative">
-        {c.tipo === 'tienda' ? '🛍️' : '☕'}
+      <div className="aspect-video rounded-lg bg-gradient-to-br from-brand/40 to-zinc-900 flex items-center justify-center text-4xl mb-3 relative overflow-hidden">
+        {c.avatar
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={c.avatar} alt={c.nombre} className="w-full h-full object-cover" />
+          : (c.tipo === 'tienda' ? '🛍️' : '☕')}
         {c.en_vivo && <span className="absolute top-2 left-2 bg-brand text-xs font-bold px-2 py-0.5 rounded">EN VIVO</span>}
       </div>
       <div className="font-bold">{c.nombre}</div>

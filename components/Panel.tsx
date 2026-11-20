@@ -63,7 +63,7 @@ export default function Panel() {
           <button key={k} onClick={() => setTab(k)} className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${tab === k ? 'bg-brand' : 'bg-white/5'}`}>{l}</button>
         ))}
       </div>
-      {tab === 'perfil' && <Perfil canal={canal} onGuardado={() => cargarCanal(uid)} />}
+      {tab === 'perfil' && <Perfil canal={canal} uid={uid} onGuardado={() => cargarCanal(uid)} />}
       {tab === 'productos' && <Productos canal={canal} uid={uid} />}
       {tab === 'publicaciones' && <Publicaciones canal={canal} uid={uid} />}
       {tab === 'zonas' && <ZonasPagos canal={canal} onGuardado={() => cargarCanal(uid)} />}
@@ -114,7 +114,7 @@ function CrearCanal({ uid, onListo }: { uid: string; onListo: () => void }) {
   )
 }
 
-function Perfil({ canal, onGuardado }: { canal: Canal; onGuardado: () => void }) {
+function Perfil({ canal, uid, onGuardado }: { canal: Canal; uid: string; onGuardado: () => void }) {
   const [f, setF] = useState({ nombre: canal.nombre, descripcion: canal.descripcion || '', whatsapp: canal.whatsapp || '', ciudad: canal.ciudad || '' })
   const [msg, setMsg] = useState('')
   async function guardar() {
@@ -124,6 +124,21 @@ function Perfil({ canal, onGuardado }: { canal: Canal; onGuardado: () => void })
   }
   return (
     <div className="space-y-3">
+      <div className="flex items-center gap-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {canal.avatar ? <img src={canal.avatar} alt="" className="w-16 h-16 rounded-full object-cover" /> : <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center text-2xl">{canal.tipo === 'tienda' ? '🛍️' : '☕'}</div>}
+        <label className="text-xs text-zinc-400">Foto de perfil o logo<br />
+          <input type="file" accept="image/*" onChange={async (e) => {
+            const file = e.target.files?.[0]; if (!file) return
+            try {
+              const r = await subirArchivo(file, uid)
+              if (r.tipo !== 'foto') throw new Error('Tiene que ser una imagen')
+              await supabase.from('canales').update({ avatar: r.url }).eq('id', canal.id)
+              onGuardado()
+            } catch (er) { setMsg((er as Error).message) }
+          }} />
+        </label>
+      </div>
       <input value={f.nombre} onChange={(e) => setF({ ...f, nombre: e.target.value })} className={input} placeholder="Nombre" />
       <textarea value={f.descripcion} onChange={(e) => setF({ ...f, descripcion: e.target.value })} className={input} rows={3} placeholder="Descripción" />
       <input value={f.ciudad} onChange={(e) => setF({ ...f, ciudad: e.target.value })} className={input} placeholder="Ciudad" />
@@ -339,6 +354,15 @@ function Pedidos({ canal }: { canal: Canal }) {
 
   return (
     <div className="space-y-2">
+      {lista.length > 0 && (
+        <div className="grid grid-cols-3 gap-2 mb-2 text-center">
+          {[
+            ['Cobrado', pesos(lista.filter((p) => p.estado !== 'cancelado' && p.estado !== 'pendiente').reduce((a, p) => a + p.monto + p.envio, 0))],
+            ['Pendientes', String(lista.filter((p) => p.estado === 'pendiente').length)],
+            ['Por enviar', String(lista.filter((p) => p.estado === 'pagado' || p.estado === 'armado').length)],
+          ].map(([t, v]) => <div key={t} className="p-2 rounded-lg bg-white/5"><div className="text-xs text-zinc-400">{t}</div><div className="font-bold">{v}</div></div>)}
+        </div>
+      )}
       {lista.length === 0 && <p className="text-zinc-400 text-sm">Todavía no tenés pedidos.</p>}
       {lista.map((p) => (
         <div key={p.id} className="p-3 rounded-xl bg-white/5 border border-white/10 text-sm">
@@ -346,7 +370,12 @@ function Pedidos({ canal }: { canal: Canal }) {
           <div className="text-zinc-400">{p.comprador_nombre} · {p.comprador_contacto}</div>
           {p.direccion && <div className="text-zinc-400">{p.zona}: {p.direccion}</div>}
           <div className="text-zinc-400">{p.forma_pago}{p.talle && ` · talle ${p.talle}`}</div>
-          <select value={p.estado} onChange={(e) => supabase.from('pedidos').update({ estado: e.target.value }).eq('id', p.id).then(cargar)} className="mt-1 bg-black/40 rounded px-2 py-1 text-xs">
+          <select value={p.estado} onChange={async (e) => {
+            const { data } = await supabase.auth.getSession()
+            const r = await fetch('/api/pedido-estado', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session?.access_token}` }, body: JSON.stringify({ pedidoId: p.id, estado: e.target.value }) })
+            if (!r.ok) alert((await r.json()).error || 'No se pudo cambiar')
+            cargar()
+          }} className="mt-1 bg-black/40 rounded px-2 py-1 text-xs">
             {['pendiente', 'pagado', 'armado', 'enviado', 'cancelado'].map((s) => <option key={s}>{s}</option>)}
           </select>
         </div>

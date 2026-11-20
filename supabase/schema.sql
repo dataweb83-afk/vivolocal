@@ -144,3 +144,15 @@ create policy "cualquiera escribe en el chat" on mensajes for insert with check 
 create policy "dueño modera chat" on mensajes for delete
   using (exists (select 1 from canales c where c.id = canal_id and c.owner_id = auth.uid()));
 alter publication supabase_realtime add table mensajes;
+
+-- Permisos de tablas (los proyectos nuevos de Supabase ya no los dan automáticamente; RLS sigue protegiendo)
+grant usage on schema public to anon, authenticated, service_role;
+grant select on all tables in schema public to anon;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant all on all tables in schema public to service_role;
+grant all on all sequences in schema public to anon, authenticated, service_role;
+alter default privileges in schema public grant select on tables to anon;
+alter default privileges in schema public grant select, insert, update, delete on tables to authenticated;
+alter default privileges in schema public grant all on tables to service_role;
+revoke all on table public.canal_secretos from anon;
+grant insert on public.mensajes, public.denuncias to anon;

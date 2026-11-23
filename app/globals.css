@@ -3,3 +3,8 @@
 @tailwind utilities;
 
 body { background: #0b0b10; color: #f4f4f5; font-family: system-ui, sans-serif; }
+
+/* Filas deslizables sin barra de scroll visible */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+html { scroll-behavior: smooth; }

@@ -5,10 +5,10 @@ import { supabase, supabaseListo } from '@/lib/supabase'
 import { subirArchivo } from '@/lib/subir'
 import Emisor from './Emisor'
 import { embedUrl } from '@/lib/embed'
-import { HORAS_VIVO_GRATIS, minutosUsados } from '@/lib/data'
+import { COLORES, HORAS_VIVO_GRATIS, RUBROS, colorSeguro, minutosUsados, textoSobre } from '@/lib/data'
 import { FORMAS_PAGO, pesos, slugify, type Canal, type Producto, type Publicacion, type Zona } from '@/lib/data'
 
-type Tab = 'perfil' | 'productos' | 'publicaciones' | 'zonas' | 'pedidos'
+type Tab = 'inicio' | 'diseno' | 'perfil' | 'productos' | 'publicaciones' | 'zonas' | 'pedidos'
 
 const input = 'w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none'
 const btn = 'bg-brand hover:bg-brand-dark px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50'
@@ -17,7 +17,7 @@ export default function Panel() {
   const [uid, setUid] = useState<string | null>(null)
   const [listo, setListo] = useState(false)
   const [canal, setCanal] = useState<Canal | null>(null)
-  const [tab, setTab] = useState<Tab>('perfil')
+  const [tab, setTab] = useState<Tab>('inicio')
 
   const cargarCanal = useCallback(async (id: string) => {
     const { data } = await supabase.from('canales').select('*').eq('owner_id', id).maybeSingle()
@@ -47,8 +47,8 @@ export default function Panel() {
   if (!canal) return <CrearCanal uid={uid} onListo={() => cargarCanal(uid)} />
 
   const tabs: [Tab, string][] = [
-    ['perfil', 'Perfil'], ['productos', canal.tipo === 'tienda' ? 'Productos' : 'Productos (opc.)'],
-    ['publicaciones', 'Fotos y videos'], ['zonas', 'Zonas y pagos'], ['pedidos', 'Pedidos'],
+    ['inicio', '🏁 Inicio'], ['diseno', '🎨 Diseño'], ['productos', canal.tipo === 'tienda' ? '🛍️ Productos' : '🛍️ Productos (opc.)'],
+    ['publicaciones', '📸 Fotos y videos'], ['zonas', '🚚 Envíos y pagos'], ['perfil', '📡 Datos y vivo'], ['pedidos', '🧾 Pedidos'],
   ]
 
   return (
@@ -60,11 +60,13 @@ export default function Panel() {
         </div>
         <button onClick={() => supabase.auth.signOut().then(() => location.reload())} className="text-xs text-zinc-400 underline">Salir</button>
       </div>
-      <div className="flex gap-1 overflow-x-auto mb-5">
+      <div className="flex gap-1 overflow-x-auto mb-5 no-scrollbar">
         {tabs.map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${tab === k ? 'bg-brand' : 'bg-white/5'}`}>{l}</button>
         ))}
       </div>
+      {tab === 'inicio' && <Inicio canal={canal} irA={setTab} />}
+      {tab === 'diseno' && <Diseno canal={canal} uid={uid} onGuardado={() => cargarCanal(uid)} />}
       {tab === 'perfil' && <Perfil canal={canal} uid={uid} onGuardado={() => cargarCanal(uid)} />}
       {tab === 'productos' && <Productos canal={canal} uid={uid} />}
       {tab === 'publicaciones' && <Publicaciones canal={canal} uid={uid} />}
@@ -113,6 +115,151 @@ function CrearCanal({ uid, onListo }: { uid: string; onListo: () => void }) {
         <button className={btn + ' w-full'}>Crear canal</button>
       </form>
     </main>
+  )
+}
+
+function Inicio({ canal, irA }: { canal: Canal; irA: (t: Tab) => void }) {
+  const [n, setN] = useState<{ productos: number; zonas: number; pubs: number } | null>(null)
+  const [copiado, setCopiado] = useState(false)
+  useEffect(() => {
+    Promise.all([
+      supabase.from('productos').select('id', { count: 'exact', head: true }).eq('canal_id', canal.id),
+      supabase.from('zonas_envio').select('id', { count: 'exact', head: true }).eq('canal_id', canal.id),
+      supabase.from('publicaciones').select('id', { count: 'exact', head: true }).eq('canal_id', canal.id),
+    ]).then(([p, z, b]) => setN({ productos: p.count || 0, zonas: z.count || 0, pubs: b.count || 0 }))
+  }, [canal.id])
+
+  const esTienda = canal.tipo === 'tienda'
+  const pasos: { ok: boolean; t: string; d: string; tab: Tab }[] = [
+    { ok: !!canal.avatar, t: 'Subí tu logo o foto', d: 'Es lo primero que ve la gente.', tab: 'diseno' },
+    { ok: !!canal.portada, t: 'Elegí una portada y tu color', d: 'Hacé que tu página sea inconfundible.', tab: 'diseno' },
+    { ok: !!canal.whatsapp, t: 'Cargá tu WhatsApp', d: 'Para que te escriban y cerrar ventas.', tab: 'perfil' },
+    ...(esTienda ? [
+      { ok: (n?.productos || 0) >= 3, t: 'Cargá al menos 3 productos', d: `Tenés ${n?.productos ?? 0}. Con buenas fotos se vende más.`, tab: 'productos' as Tab },
+      { ok: (n?.zonas || 0) >= 1, t: 'Definí tus zonas de envío', d: 'Con su costo y demora.', tab: 'zonas' as Tab },
+    ] : [
+      { ok: (n?.pubs || 0) >= 1, t: 'Subí tu primera foto o video', d: 'Mostrá lo que hacés.', tab: 'publicaciones' as Tab },
+    ]),
+    { ok: canal.formas_pago.length > 0, t: 'Elegí cómo te pagan', d: 'Tarjeta, transferencia, efectivo, Lemon, etc.', tab: 'zonas' },
+  ]
+  const hechos = pasos.filter((p) => p.ok).length
+  const pct = Math.round((hechos / pasos.length) * 100)
+  const url = typeof location !== 'undefined' ? `${location.origin}/${canal.slug}` : `/${canal.slug}`
+
+  return (
+    <div className="space-y-5">
+      <div className="p-5 rounded-2xl bg-gradient-to-br from-brand/30 to-white/5 border border-white/10">
+        <div className="flex justify-between items-end">
+          <div>
+            <div className="text-sm text-zinc-300">Tu página de ventas está al</div>
+            <div className="text-4xl font-extrabold">{pct}%</div>
+          </div>
+          {pct === 100 && <span className="text-sm font-bold text-green-400">¡Lista para vender! 🎉</span>}
+        </div>
+        <div className="h-2.5 rounded-full bg-black/40 mt-3 overflow-hidden"><div className="h-full bg-brand transition-all" style={{ width: `${pct}%` }} /></div>
+      </div>
+
+      <div className="space-y-2">
+        {pasos.map((p) => (
+          <button key={p.t} onClick={() => irA(p.tab)} className="w-full text-left flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10">
+            <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${p.ok ? 'bg-green-600' : 'bg-white/10'}`}>{p.ok ? '✓' : '·'}</span>
+            <span className="flex-1"><span className={`block font-semibold text-sm ${p.ok ? 'line-through text-zinc-500' : ''}`}>{p.t}</span><span className="block text-xs text-zinc-400">{p.d}</span></span>
+            <span className="text-zinc-500">›</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+        <div className="font-bold mb-1">🔗 Tu link para vender</div>
+        <p className="text-xs text-zinc-400 mb-2">Compartilo en Instagram, WhatsApp y donde quieras.</p>
+        <div className="flex gap-2">
+          <input readOnly value={url} className={input} onFocus={(e) => e.currentTarget.select()} />
+          <button onClick={() => { navigator.clipboard?.writeText(url); setCopiado(true); setTimeout(() => setCopiado(false), 2000) }} className={btn}>{copiado ? '¡Copiado!' : 'Copiar'}</button>
+        </div>
+        <div className="flex gap-3 mt-3 text-sm">
+          <Link href={`/${canal.slug}`} target="_blank" className="underline text-brand">Ver mi página</Link>
+          <a href={`https://wa.me/?text=${encodeURIComponent(`Mirá mi tienda: ${url}`)}`} target="_blank" rel="noreferrer" className="underline text-green-400">Compartir por WhatsApp</a>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Diseno({ canal, uid, onGuardado }: { canal: Canal; uid: string; onGuardado: () => void }) {
+  const [f, setF] = useState({ color: colorSeguro(canal.color), lema: canal.lema || '', instagram: canal.instagram || '', rubro: canal.rubro || '' })
+  const [msg, setMsg] = useState('')
+  const [subiendo, setSubiendo] = useState(false)
+
+  async function guardar(extra: Partial<Canal> = {}) {
+    const { error } = await supabase.from('canales').update({ ...f, lema: f.lema || null, instagram: f.instagram || null, rubro: f.rubro || null, ...extra }).eq('id', canal.id)
+    setMsg(error ? error.message : 'Guardado ✓'); onGuardado()
+  }
+
+  async function imagen(file: File | undefined, campo: 'portada' | 'avatar') {
+    if (!file) return
+    setSubiendo(true); setMsg('')
+    try {
+      const r = await subirArchivo(file, uid)
+      if (r.tipo !== 'foto') throw new Error('Tiene que ser una imagen')
+      await guardar({ [campo]: r.url })
+    } catch (e) { setMsg((e as Error).message) }
+    setSubiendo(false)
+  }
+
+  const portada = canal.portada
+  return (
+    <div className="space-y-5">
+      {/* Vista previa */}
+      <div className="rounded-2xl overflow-hidden border border-white/10 bg-[#0b0b10]" style={{ '--c': f.color, '--ct': textoSobre(f.color) } as React.CSSProperties}>
+        <div className="h-28 relative" style={{ background: `linear-gradient(135deg, ${f.color}, #0b0b10 85%)` }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {portada && <img src={portada} alt="" className="absolute inset-0 w-full h-full object-cover" />}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b10] to-transparent" />
+        </div>
+        <div className="px-4 pb-4 -mt-9 relative">
+          <div className="w-16 h-16 rounded-full ring-4 ring-[#0b0b10] overflow-hidden flex items-center justify-center text-2xl font-extrabold bg-[var(--c)] text-[var(--ct)]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {canal.avatar ? <img src={canal.avatar} alt="" className="w-full h-full object-cover" /> : canal.nombre.slice(0, 1).toUpperCase()}
+          </div>
+          <div className="font-extrabold text-xl mt-2">{canal.nombre}</div>
+          <div className="text-sm text-zinc-300">{f.lema || 'Tu lema aparece acá'}</div>
+          <button className="mt-3 bg-[var(--c)] text-[var(--ct)] font-bold px-5 py-2 rounded-full text-sm">Comprar ahora</button>
+        </div>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-3">
+        <label className="p-3 rounded-xl bg-white/5 border border-white/10 text-sm">
+          <div className="font-semibold mb-1">🖼️ Portada</div>
+          <div className="text-xs text-zinc-400 mb-2">Imagen ancha, ideal 1600×600.</div>
+          <input type="file" accept="image/*" disabled={subiendo} onChange={(e) => imagen(e.target.files?.[0], 'portada')} className="text-xs" />
+        </label>
+        <label className="p-3 rounded-xl bg-white/5 border border-white/10 text-sm">
+          <div className="font-semibold mb-1">👤 Logo o foto de perfil</div>
+          <div className="text-xs text-zinc-400 mb-2">Cuadrada, se muestra en círculo.</div>
+          <input type="file" accept="image/*" disabled={subiendo} onChange={(e) => imagen(e.target.files?.[0], 'avatar')} className="text-xs" />
+        </label>
+      </div>
+
+      <div>
+        <div className="font-semibold text-sm mb-2">🎨 Color de tu marca</div>
+        <div className="flex gap-2 flex-wrap items-center">
+          {COLORES.map((c) => <button key={c} type="button" aria-label={c} onClick={() => setF({ ...f, color: c })} className={`w-9 h-9 rounded-full border-2 ${f.color.toLowerCase() === c.toLowerCase() ? 'border-white scale-110' : 'border-transparent'}`} style={{ background: c }} />)}
+          <input type="color" value={f.color} onChange={(e) => setF({ ...f, color: e.target.value })} className="w-9 h-9 rounded bg-transparent" aria-label="Color personalizado" />
+        </div>
+      </div>
+
+      <input value={f.lema} maxLength={80} onChange={(e) => setF({ ...f, lema: e.target.value })} className={input} placeholder="Tu lema o frase (máx. 80 letras). Ej: Zapatillas originales al mejor precio" />
+      <input value={f.instagram} maxLength={40} onChange={(e) => setF({ ...f, instagram: e.target.value.replace(/\s/g, '') })} className={input} placeholder="Tu Instagram (sin link). Ej: @zapasdelcentro" />
+      <select value={f.rubro} onChange={(e) => setF({ ...f, rubro: e.target.value })} className={input}>
+        <option value="">¿Qué vendés o hacés? (rubro)</option>
+        {RUBROS.map((r) => <option key={r}>{r}</option>)}
+      </select>
+
+      <div className="flex items-center gap-3">
+        <button onClick={() => guardar()} disabled={subiendo} className={btn}>Guardar diseño</button>
+        <span className="text-sm text-zinc-400">{subiendo ? 'Subiendo...' : msg}</span>
+      </div>
+    </div>
   )
 }
 

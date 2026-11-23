@@ -33,6 +33,11 @@ export type Canal = {
   billeteras: string | null
   vivo_modo: 'propio' | 'externo'
   vivo_url: string | null
+  portada: string | null
+  color: string
+  lema: string | null
+  instagram: string | null
+  rubro: string | null
 }
 
 export type Producto = {
@@ -66,7 +71,20 @@ export const FORMAS_PAGO: Record<string, string> = {
   retiro: 'Retiro en el local (pago ahí)',
 }
 
-export const pesos = (n: number) => '$' + n.toLocaleString('es-AR')
+export const RUBROS = ['Ropa y moda', 'Calzado', 'Accesorios', 'Belleza y cuidado', 'Comida y bebida', 'Hogar y deco', 'Tecnología', 'Deportes', 'Juguetes y niños', 'Arte y regalos', 'Servicios', 'Otro']
+
+export const COLORES = ['#E11D48', '#F97316', '#EAB308', '#16A34A', '#0EA5E9', '#6366F1', '#A855F7', '#EC4899', '#14B8A6', '#F4F4F5']
+
+// Color de texto legible (blanco o casi negro) sobre el color de marca elegido
+export function textoSobre(hex: string) {
+  const h = /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : '#E11D48'
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
+  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#111111' : '#ffffff'
+}
+
+export const colorSeguro = (hex?: string | null) => (hex && /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : '#E11D48')
+
+export const pesos =(n: number) => '$' + n.toLocaleString('es-AR')
 
 export const slugify = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)

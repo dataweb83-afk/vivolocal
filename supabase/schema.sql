@@ -177,3 +177,10 @@ create policy "dueño ve sus vivos" on vivos for select
   using (exists (select 1 from canales c where c.id = canal_id and c.owner_id = auth.uid()));
 grant select on public.vivos to authenticated;
 grant all on public.vivos to service_role;
+
+-- Personalización de la página de venta de cada canal
+alter table canales add column if not exists portada text;
+alter table canales add column if not exists color text not null default '#E11D48' check (color ~ '^#[0-9a-fA-F]{6}$');
+alter table canales add column if not exists lema text check (char_length(lema) <= 80);
+alter table canales add column if not exists instagram text check (char_length(instagram) <= 40);
+alter table canales add column if not exists rubro text;

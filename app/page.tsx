@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { supabase, supabaseListo } from '@/lib/supabase'
-import { RUBROS, colorSeguro, textoSobre, type Canal } from '@/lib/data'
+import { RUBROS, colorSeguro, planVigente, textoSobre, type Canal } from '@/lib/data'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,13 +8,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
   const { q = '', tipo = '', rubro = '' } = await searchParams
   let canales: Canal[] = []
   if (supabaseListo) {
-    let query = supabase.from('canales').select('*').order('en_vivo', { ascending: false }).order('creado', { ascending: false }).limit(60)
+    let query = supabase.from('canales').select('*').order('en_vivo', { ascending: false }).order('creado', { ascending: false }).limit(150)
     if (tipo === 'tienda' || tipo === 'persona') query = query.eq('tipo', tipo)
     if (RUBROS.includes(rubro)) query = query.eq('rubro', rubro)
     const term = q.replace(/[%,()]/g, ' ').trim().slice(0, 40)
     if (term) query = query.or(`nombre.ilike.%${term}%,ciudad.ilike.%${term}%,descripcion.ilike.%${term}%,lema.ilike.%${term}%`)
     const { data } = await query
-    canales = (data as Canal[]) || []
+    // Los canales con el abono vencido no se listan
+    canales = ((data as Canal[]) || []).filter((c) => planVigente(c)).slice(0, 60)
   }
   const envivo = canales.filter((c) => c.en_vivo)
   const resto = canales.filter((c) => !c.en_vivo)

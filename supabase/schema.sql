@@ -184,3 +184,30 @@ alter table canales add column if not exists color text not null default '#E11D4
 alter table canales add column if not exists lema text check (char_length(lema) <= 80);
 alter table canales add column if not exists instagram text check (char_length(instagram) <= 40);
 alter table canales add column if not exists rubro text;
+
+-- ABONO MENSUAL: primer mes gratis (prueba), después se paga por mes. Los packs de video suman horas.
+alter table canales add column if not exists prueba_hasta timestamptz default (now() + interval '30 days');
+alter table canales add column if not exists plan_hasta timestamptz;
+update canales set prueba_hasta = creado + interval '30 days' where prueba_hasta is null;
+
+create table if not exists abonos (
+  id uuid primary key default gen_random_uuid(),
+  canal_id uuid references canales(id) on delete cascade not null,
+  tipo text not null check (tipo in ('abono','pack_video')),
+  monto integer,                 -- lo que pagó (informativo)
+  horas integer,                 -- solo para pack_video
+  nota text,
+  creado timestamptz not null default now()
+);
+alter table abonos enable row level security;
+create policy "dueño ve sus abonos" on abonos for select
+  using (exists (select 1 from canales c where c.id = canal_id and c.owner_id = auth.uid()));
+grant select on public.abonos to authenticated;
+grant all on public.abonos to service_role;
+
+-- SEGURIDAD: el vendedor solo puede editar columnas de presentación. Nunca plan, suspensión, dueño ni slug.
+revoke update on public.canales from authenticated;
+grant update (nombre, descripcion, avatar, whatsapp, ciudad, en_vivo, formas_pago, alias_transferencia, billeteras,
+              vivo_modo, vivo_url, portada, color, lema, instagram, rubro) on public.canales to authenticated;
+revoke insert on public.canales from authenticated;
+grant insert (owner_id, slug, nombre, tipo, descripcion) on public.canales to authenticated;

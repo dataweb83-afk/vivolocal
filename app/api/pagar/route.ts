@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { MercadoPagoConfig, Preference } from 'mercadopago'
-import { COMISION } from '@/lib/data'
+import { COMISION, planVigente } from '@/lib/data'
 import { supabaseAdmin } from '@/lib/supabase'
 
 const err = (error: string, status = 400) => NextResponse.json({ error }, { status })
@@ -13,6 +13,7 @@ export async function POST(req: Request) {
 
   const { data: canal } = await db.from('canales').select('*').eq('id', b.canalId).maybeSingle()
   if (!canal || canal.suspendido) return err('Canal inexistente', 404)
+  if (!planVigente(canal)) return err('Esta tienda está en pausa temporalmente. Consultá directamente al vendedor.', 403)
 
   const nombre = txt(b.nombre, 80), contacto = txt(b.contacto, 120)
   if (!nombre || !contacto) return err('Completá tu nombre y contacto')

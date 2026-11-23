@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { AccessToken } from 'livekit-server-sdk'
 import { supabaseAdmin } from '@/lib/supabase'
-import { HORAS_VIVO_GRATIS, minutosUsados } from '@/lib/data'
+import { horasTope, minutosUsados, planVigente } from '@/lib/data'
 
 const err = (error: string, status = 400) => NextResponse.json({ error }, { status })
 
@@ -13,8 +13,9 @@ export async function POST(req: Request) {
 
   const { canalId, modo } = await req.json()
   const db = supabaseAdmin()
-  const { data: canal } = await db.from('canales').select('id,owner_id,suspendido').eq('id', canalId).maybeSingle()
+  const { data: canal } = await db.from('canales').select('id,owner_id,suspendido,prueba_hasta,plan_hasta').eq('id', canalId).maybeSingle()
   if (!canal || canal.suspendido) return err('Canal inexistente', 404)
+  if (!planVigente(canal)) return err('El abono de este canal está vencido. Renovalo desde Mi plan, o transmití por YouTube, Facebook u otra plataforma.', 402)
 
   let identity = `espectador-${Math.random().toString(36).slice(2, 10)}`
   let puedeEmitir = false
@@ -29,8 +30,10 @@ export async function POST(req: Request) {
     const abiertos = (vivos || []).filter((v) => !v.fin).map((v) => v.id)
     if (abiertos.length) await db.from('vivos').update({ fin: new Date().toISOString() }).in('id', abiertos)
     const usados = minutosUsados((vivos || []).map((v) => ({ inicio: v.inicio, fin: v.fin ?? new Date().toISOString() })))
-    if (usados >= HORAS_VIVO_GRATIS * 60) {
-      return err(`Llegaste al límite de ${HORAS_VIVO_GRATIS} horas gratis de transmisión directa este mes. Podés transmitir por YouTube, Facebook o Twitch sin límite, o esperar al mes que viene.`, 429)
+    const { data: packs } = await db.from('abonos').select('horas,creado').eq('canal_id', canal.id).eq('tipo', 'pack_video')
+    const tope = horasTope(packs || [])
+    if (usados >= tope * 60) {
+      return err(`Llegaste al límite de ${tope} horas de transmisión directa este mes. Para seguir transmitiendo en VivoLocal sumá un pack de video desde Mi plan, o transmití por YouTube, Facebook u otra plataforma sin límite.`, 429)
     }
     await db.from('vivos').insert({ canal_id: canal.id })
     identity = `emisor-${canal.id}`

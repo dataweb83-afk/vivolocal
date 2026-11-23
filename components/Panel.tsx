@@ -5,10 +5,10 @@ import { supabase, supabaseListo } from '@/lib/supabase'
 import { subirArchivo } from '@/lib/subir'
 import Emisor from './Emisor'
 import { embedUrl } from '@/lib/embed'
-import { COLORES, HORAS_VIVO_GRATIS, RUBROS, colorSeguro, minutosUsados, textoSobre } from '@/lib/data'
+import { COBRO_ALIAS, COBRO_WHATSAPP, COLORES, DIAS_ABONO, PRECIO_ABONO, PRECIO_PACK, HORAS_PACK_VIDEO, HORAS_VIVO_GRATIS, RUBROS, colorSeguro, estadoPlan, horasTope, minutosUsados, textoSobre } from '@/lib/data'
 import { FORMAS_PAGO, pesos, slugify, type Canal, type Producto, type Publicacion, type Zona } from '@/lib/data'
 
-type Tab = 'inicio' | 'diseno' | 'perfil' | 'productos' | 'publicaciones' | 'zonas' | 'pedidos'
+type Tab = 'inicio' | 'plan' | 'diseno' | 'perfil' | 'productos' | 'publicaciones' | 'zonas' | 'pedidos'
 
 const input = 'w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none'
 const btn = 'bg-brand hover:bg-brand-dark px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50'
@@ -47,9 +47,10 @@ export default function Panel() {
   if (!canal) return <CrearCanal uid={uid} onListo={() => cargarCanal(uid)} />
 
   const tabs: [Tab, string][] = [
-    ['inicio', '🏁 Inicio'], ['diseno', '🎨 Diseño'], ['productos', canal.tipo === 'tienda' ? '🛍️ Productos' : '🛍️ Productos (opc.)'],
+    ['inicio', '🏁 Inicio'], ['plan', '💳 Mi plan'], ['diseno', '🎨 Diseño'], ['productos', canal.tipo === 'tienda' ? '🛍️ Productos' : '🛍️ Productos (opc.)'],
     ['publicaciones', '📸 Fotos y videos'], ['zonas', '🚚 Envíos y pagos'], ['perfil', '📡 Datos y vivo'], ['pedidos', '🧾 Pedidos'],
   ]
+  const plan = estadoPlan(canal)
 
   return (
     <main className="max-w-3xl mx-auto px-4 py-6 pb-24">
@@ -65,6 +66,14 @@ export default function Panel() {
           <button key={k} onClick={() => setTab(k)} className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${tab === k ? 'bg-brand' : 'bg-white/5'}`}>{l}</button>
         ))}
       </div>
+      {(plan.estado === 'vencido' || (plan.estado === 'prueba' && plan.dias <= 7) || (plan.estado === 'activo' && plan.dias <= 5)) && tab !== 'plan' && (
+        <button onClick={() => setTab('plan')} className={`w-full text-left mb-4 p-3 rounded-xl border text-sm ${plan.estado === 'vencido' ? 'bg-red-950/60 border-red-500/40' : 'bg-amber-950/60 border-amber-500/40'}`}>
+          {plan.estado === 'vencido'
+            ? <><b>Tu tienda está en pausa.</b> Tu abono venció: nadie puede comprarte ni ver tus vivos. Tocá acá para renovarlo.</>
+            : <><b>{plan.estado === 'prueba' ? `Tu mes gratis termina en ${plan.dias} día${plan.dias === 1 ? '' : 's'}.` : `Tu abono vence en ${plan.dias} día${plan.dias === 1 ? '' : 's'}.`}</b> Tocá acá para ver cómo seguir.</>}
+        </button>
+      )}
+      {tab === 'plan' && <MiPlan canal={canal} />}
       {tab === 'inicio' && <Inicio canal={canal} irA={setTab} />}
       {tab === 'diseno' && <Diseno canal={canal} uid={uid} onGuardado={() => cargarCanal(uid)} />}
       {tab === 'perfil' && <Perfil canal={canal} uid={uid} onGuardado={() => cargarCanal(uid)} />}
@@ -115,6 +124,76 @@ function CrearCanal({ uid, onListo }: { uid: string; onListo: () => void }) {
         <button className={btn + ' w-full'}>Crear canal</button>
       </form>
     </main>
+  )
+}
+
+function MiPlan({ canal }: { canal: Canal }) {
+  const plan = estadoPlan(canal)
+  const [hist, setHist] = useState<{ id: string; tipo: string; monto: number | null; horas: number | null; creado: string }[]>([])
+  useEffect(() => {
+    supabase.from('abonos').select('id,tipo,monto,horas,creado').eq('canal_id', canal.id).order('creado', { ascending: false }).limit(20).then(({ data }) => setHist(data || []))
+  }, [canal.id])
+
+  const fecha = (d: Date | string) => new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const wa = (msg: string) => COBRO_WHATSAPP ? `https://wa.me/${COBRO_WHATSAPP}?text=${encodeURIComponent(msg)}` : null
+  const linkAbono = wa(`Hola! Quiero pagar el abono mensual de VivoLocal para mi canal "${canal.nombre}" (${canal.slug}).`)
+  const linkPack = wa(`Hola! Quiero sumar un pack de video (+${HORAS_PACK_VIDEO} horas) de VivoLocal para mi canal "${canal.nombre}" (${canal.slug}).`)
+
+  const color = plan.estado === 'vencido' ? 'from-red-700/40' : plan.estado === 'prueba' ? 'from-amber-600/30' : 'from-green-600/30'
+  return (
+    <div className="space-y-5">
+      <div className={`p-5 rounded-2xl bg-gradient-to-br ${color} to-white/5 border border-white/10`}>
+        <div className="text-sm text-zinc-300">Tu plan</div>
+        <div className="text-2xl font-extrabold mt-1">
+          {plan.estado === 'prueba' && `Mes gratis · te quedan ${plan.dias} día${plan.dias === 1 ? '' : 's'}`}
+          {plan.estado === 'activo' && `Abono activo · ${plan.dias} día${plan.dias === 1 ? '' : 's'} restantes`}
+          {plan.estado === 'vencido' && 'Abono vencido · tienda en pausa'}
+        </div>
+        <div className="text-sm text-zinc-300 mt-1">
+          {plan.estado === 'vencido' ? `Venció el ${fecha(plan.hasta!)}. Mientras esté vencido nadie puede comprarte ni ver tus vivos.` : `Vigente hasta el ${fecha(plan.hasta!)}.`}
+        </div>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+          <div className="font-bold">Abono mensual</div>
+          <div className="text-2xl font-extrabold text-brand mt-1">{PRECIO_ABONO}</div>
+          <ul className="text-sm text-zinc-300 mt-3 space-y-1 list-disc pl-4">
+            <li>Tu página de ventas propia</li>
+            <li>Productos, envíos y pagos a tu manera</li>
+            <li>{HORAS_VIVO_GRATIS} horas de vivo por mes en VivoLocal</li>
+            <li>Vivos ilimitados por YouTube, Facebook, Twitch o Kick</li>
+            <li>Cobrás directo en tu cuenta, sin comisión por venta</li>
+          </ul>
+          {linkAbono && <a href={linkAbono} target="_blank" rel="noreferrer" className={btn + ' inline-block mt-4'}>Pagar el abono</a>}
+        </div>
+        <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+          <div className="font-bold">Pack de video</div>
+          <div className="text-2xl font-extrabold text-brand mt-1">{PRECIO_PACK}</div>
+          <p className="text-sm text-zinc-300 mt-3">Suma <b>{HORAS_PACK_VIDEO} horas</b> de transmisión directa en VivoLocal este mes. Lo necesitás si llegás al límite y querés seguir transmitiendo acá.</p>
+          <p className="text-xs text-zinc-500 mt-2">Si no, podés seguir gratis con YouTube, Facebook u otra plataforma.</p>
+          {linkPack && <a href={linkPack} target="_blank" rel="noreferrer" className={btn + ' inline-block mt-4'}>Sumar un pack</a>}
+        </div>
+      </div>
+
+      <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-sm">
+        <div className="font-bold mb-1">¿Cómo pago?</div>
+        <p className="text-zinc-300">{COBRO_ALIAS ? <>Transferí a <b>{COBRO_ALIAS}</b> y avisanos</> : 'Avisanos'} por WhatsApp con los botones de arriba. Cuando confirmemos tu pago, tu plan se activa y verás el cambio acá.</p>
+        {!COBRO_WHATSAPP && !COBRO_ALIAS && <p className="text-amber-400 text-xs mt-2">Los datos de cobro todavía no están cargados.</p>}
+      </div>
+
+      {hist.length > 0 && (
+        <div>
+          <div className="font-bold mb-2">Historial</div>
+          {hist.map((h) => (
+            <div key={h.id} className="flex justify-between text-sm py-2 border-b border-white/5">
+              <span>{h.tipo === 'abono' ? `Abono (${DIAS_ABONO} días)` : `Pack de video (+${h.horas} h)`}</span>
+              <span className="text-zinc-400">{fecha(h.creado)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -305,9 +384,13 @@ function VivoConfig({ canal, onGuardado }: { canal: Canal; onGuardado: () => voi
   const [msg, setMsg] = useState('')
   const valido = typeof location !== 'undefined' ? !!embedUrl(url, location.hostname) : true
 
+  const [horasTotal, setHorasTotal] = useState(HORAS_VIVO_GRATIS)
+
   useEffect(() => {
     supabase.from('vivos').select('inicio,fin').eq('canal_id', canal.id).order('inicio', { ascending: false }).limit(500)
       .then(({ data }) => setUsados(minutosUsados(data || [])))
+    supabase.from('abonos').select('horas,creado').eq('canal_id', canal.id).eq('tipo', 'pack_video')
+      .then(({ data }) => setHorasTotal(horasTope(data || [])))
   }, [canal.id, canal.en_vivo])
 
   async function guardarModo(m: 'propio' | 'externo', nuevaUrl = url) {
@@ -316,7 +399,7 @@ function VivoConfig({ canal, onGuardado }: { canal: Canal; onGuardado: () => voi
     setMsg(error ? error.message : 'Guardado ✓'); onGuardado()
   }
 
-  const tope = HORAS_VIVO_GRATIS * 60
+  const tope = horasTotal * 60
   const card = (activo: boolean) => `p-3 rounded-xl border text-left text-sm ${activo ? 'border-brand bg-brand/10' : 'border-white/10 bg-white/5'}`
 
   return (
@@ -329,7 +412,7 @@ function VivoConfig({ canal, onGuardado }: { canal: Canal; onGuardado: () => voi
         </button>
         <button type="button" onClick={() => guardarModo('propio')} className={card(modo === 'propio')}>
           <b>Directo en VivoLocal</b>
-          <div className="text-xs text-zinc-400 mt-1">Más libertad: sin depender de las reglas de otra plataforma (siempre dentro de la ley). Tenés {HORAS_VIVO_GRATIS} horas gratis por mes.</div>
+          <div className="text-xs text-zinc-400 mt-1">Más libertad: sin depender de las reglas de otra plataforma (siempre dentro de la ley). Tu abono incluye {HORAS_VIVO_GRATIS} horas por mes; si necesitás más, sumás un pack.</div>
         </button>
       </div>
 
@@ -351,9 +434,9 @@ function VivoConfig({ canal, onGuardado }: { canal: Canal; onGuardado: () => voi
       ) : (
         <>
           <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-sm">
-            <div className="flex justify-between"><span>Horas usadas este mes</span><b>{(usados / 60).toFixed(1)} / {HORAS_VIVO_GRATIS} h</b></div>
+            <div className="flex justify-between"><span>Horas usadas este mes</span><b>{(usados / 60).toFixed(1)} / {horasTotal} h</b></div>
             <div className="h-2 rounded bg-black/40 mt-2 overflow-hidden"><div className={`h-full ${usados >= tope ? 'bg-red-500' : 'bg-brand'}`} style={{ width: `${Math.min(100, (usados / tope) * 100)}%` }} /></div>
-            {usados >= tope && <p className="text-xs text-red-400 mt-2">Llegaste al límite. Podés transmitir por YouTube, Facebook o Twitch sin límite.</p>}
+            {usados >= tope && <p className="text-xs text-red-400 mt-2">Llegaste al límite del mes. Para seguir transmitiendo en VivoLocal sumá un <b>pack de video</b> desde la pestaña <b>Mi plan</b>, o seguí gratis por YouTube, Facebook u otra plataforma.</p>}
           </div>
           <Emisor canalId={canal.id} onCambio={onGuardado} />
         </>

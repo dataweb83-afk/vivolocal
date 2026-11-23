@@ -4,6 +4,36 @@ export const COMISION = 0.08 // 8% para la plataforma
 export const HORAS_VIVO_GRATIS = 20
 export const MAX_HORAS_POR_VIVO = 6 // si alguien se olvida de cortar, se cuenta como máximo esto
 
+// ── ABONO ──────────────────────────────────────────────────────────────
+export const DIAS_PRUEBA = 30
+export const DIAS_ABONO = 30
+export const HORAS_PACK_VIDEO = 10 // horas que suma cada pack de video
+// Datos de cobro de VivoLocal (se configuran como variables de entorno públicas)
+export const PRECIO_ABONO = process.env.NEXT_PUBLIC_ABONO_PRECIO || 'a confirmar'
+export const PRECIO_PACK = process.env.NEXT_PUBLIC_PACK_PRECIO || 'a confirmar'
+export const COBRO_ALIAS = process.env.NEXT_PUBLIC_COBRO_ALIAS || ''
+export const COBRO_WHATSAPP = (process.env.NEXT_PUBLIC_COBRO_WHATSAPP || '').replace(/\D/g, '')
+
+export type EstadoPlan = { estado: 'prueba' | 'activo' | 'vencido'; hasta: Date | null; dias: number }
+
+// El canal funciona mientras esté dentro de la prueba o del abono pagado.
+export function estadoPlan(c: { prueba_hasta?: string | null; plan_hasta?: string | null }, ahora = Date.now()): EstadoPlan {
+  const p = c.prueba_hasta ? new Date(c.prueba_hasta).getTime() : 0
+  const a = c.plan_hasta ? new Date(c.plan_hasta).getTime() : 0
+  const dias = (t: number) => Math.max(0, Math.ceil((t - ahora) / 86400000))
+  if (a > ahora) return { estado: 'activo', hasta: new Date(a), dias: dias(a) }
+  if (p > ahora) return { estado: 'prueba', hasta: new Date(p), dias: dias(p) }
+  return { estado: 'vencido', hasta: new Date(Math.max(a, p)) , dias: 0 }
+}
+export const planVigente = (c: { prueba_hasta?: string | null; plan_hasta?: string | null }) => estadoPlan(c).estado !== 'vencido'
+
+// Horas de video propio del mes: las gratis + las de los packs comprados este mes
+export function horasTope(packs: { horas: number | null; creado: string }[], ahora = Date.now()) {
+  const d = new Date(ahora)
+  const inicioMes = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)
+  return HORAS_VIVO_GRATIS + packs.filter((p) => new Date(p.creado).getTime() >= inicioMes).reduce((a, p) => a + (p.horas || 0), 0)
+}
+
 // Minutos usados este mes (UTC) a partir de los registros de vivos
 export function minutosUsados(vivos: { inicio: string; fin: string | null }[], ahora = Date.now()) {
   const d = new Date(ahora)
@@ -33,6 +63,8 @@ export type Canal = {
   billeteras: string | null
   vivo_modo: 'propio' | 'externo'
   vivo_url: string | null
+  prueba_hasta: string | null
+  plan_hasta: string | null
   portada: string | null
   color: string
   lema: string | null

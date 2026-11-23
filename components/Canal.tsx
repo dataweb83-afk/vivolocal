@@ -4,7 +4,7 @@ import { embedUrl } from '@/lib/embed'
 import { supabase } from '@/lib/supabase'
 import Chat from './Chat'
 import VideoVivo from './VideoVivo'
-import { FORMAS_PAGO, colorSeguro, pesos, textoSobre, type Canal, type Producto, type Publicacion, type Zona } from '@/lib/data'
+import { FORMAS_PAGO, colorSeguro, pesos, planVigente, textoSobre, type Canal, type Producto, type Publicacion, type Zona } from '@/lib/data'
 
 const input = 'w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[var(--c)]'
 const boton = 'bg-[var(--c)] text-[var(--ct)] font-bold hover:brightness-110 active:scale-[0.98] transition disabled:opacity-40'
@@ -23,8 +23,10 @@ export default function CanalVista({ canal, productos, zonas, publicaciones }: {
   const [copiado, setCopiado] = useState(false)
   useEffect(() => { setHost(location.hostname) }, [])
   const src = host ? embedUrl(canal.vivo_url, host) : null
-  const aceptaMP = canal.formas_pago.includes('mercadopago')
-  const puedeComprar = canal.formas_pago.length > 0
+  const pausa = !planVigente(canal) // abono vencido: la tienda queda en pausa
+  const aceptaMP = canal.formas_pago.includes('mercadopago') && !pausa
+  const puedeComprar = canal.formas_pago.length > 0 && !pausa
+  const enVivo = canal.en_vivo && !pausa
 
   async function denunciar() {
     const motivo = prompt('¿Por qué denunciás este canal?')
@@ -67,7 +69,7 @@ export default function CanalVista({ canal, productos, zonas, publicaciones }: {
               ? <img src={canal.avatar} alt={canal.nombre} className="w-full h-full object-cover" />
               : canal.nombre.slice(0, 1).toUpperCase()}
           </div>
-          {canal.en_vivo && <span className="mb-2 inline-flex items-center gap-1.5 bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse"><span className="w-2 h-2 rounded-full bg-white" />EN VIVO</span>}
+          {enVivo && <span className="mb-2 inline-flex items-center gap-1.5 bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse"><span className="w-2 h-2 rounded-full bg-white" />EN VIVO</span>}
         </div>
 
         <h1 className="mt-3 text-3xl sm:text-4xl font-extrabold tracking-tight">{canal.nombre}</h1>
@@ -87,7 +89,12 @@ export default function CanalVista({ canal, productos, zonas, publicaciones }: {
 
       <main className="max-w-5xl mx-auto px-4">
         {/* Vivo */}
-        {canal.en_vivo && (
+        {pausa && (
+          <div className="mt-6 p-4 rounded-2xl bg-amber-950/60 border border-amber-500/40 text-sm">
+            <b>Esta tienda está en pausa temporalmente.</b> No se pueden hacer compras por ahora{canal.whatsapp ? ', pero podés escribirle por WhatsApp.' : '.'}
+          </div>
+        )}
+        {enVivo && (
           <section className="mt-6 grid lg:grid-cols-[1fr_330px] gap-3">
             <div className="aspect-video rounded-2xl bg-black border border-white/10 relative overflow-hidden flex items-center justify-center shadow-2xl">
               {canal.vivo_modo === 'externo'

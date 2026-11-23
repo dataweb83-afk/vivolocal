@@ -1,5 +1,6 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { embedUrl } from '@/lib/embed'
 import { supabase } from '@/lib/supabase'
 import Chat from './Chat'
 import VideoVivo from './VideoVivo'
@@ -13,6 +14,9 @@ export default function CanalVista({ canal, productos, zonas, publicaciones }: {
   const [monto, setMonto] = useState(1000)
   const [compra, setCompra] = useState<Compra | null>(null)
   const aceptaMP = canal.formas_pago.includes('mercadopago')
+  const [host, setHost] = useState('')
+  useEffect(() => { setHost(location.hostname) }, [])
+  const src = host ? embedUrl(canal.vivo_url, host) : null
 
   async function denunciar() {
     const motivo = prompt('¿Por qué denunciás este canal?')
@@ -28,7 +32,9 @@ export default function CanalVista({ canal, productos, zonas, publicaciones }: {
         {canal.en_vivo ? (
           <>
             <span className="absolute top-3 left-3 z-10 bg-brand text-xs font-bold px-2 py-1 rounded">🔴 EN VIVO</span>
-            <VideoVivo canalId={canal.id} />
+            {canal.vivo_modo === 'externo'
+              ? (src ? <iframe src={src} className="absolute inset-0 w-full h-full" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen title={`Vivo de ${canal.nombre}`} /> : <p className="text-zinc-500 text-sm">Cargando el vivo...</p>)
+              : <VideoVivo canalId={canal.id} />}
           </>
         ) : (
           <p className="text-zinc-500">No está transmitiendo ahora</p>

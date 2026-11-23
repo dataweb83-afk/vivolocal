@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { supabase, supabaseListo } from '@/lib/supabase'
 import { subirArchivo } from '@/lib/subir'
 import Emisor from './Emisor'
+import { embedUrl } from '@/lib/embed'
+import { HORAS_VIVO_GRATIS, minutosUsados } from '@/lib/data'
 import { FORMAS_PAGO, pesos, slugify, type Canal, type Producto, type Publicacion, type Zona } from '@/lib/data'
 
 type Tab = 'perfil' | 'productos' | 'publicaciones' | 'zonas' | 'pedidos'
@@ -144,7 +146,71 @@ function Perfil({ canal, uid, onGuardado }: { canal: Canal; uid: string; onGuard
       <input value={f.ciudad} onChange={(e) => setF({ ...f, ciudad: e.target.value })} className={input} placeholder="Ciudad" />
       <input value={f.whatsapp} onChange={(e) => setF({ ...f, whatsapp: e.target.value.replace(/\D/g, '') })} className={input} placeholder="WhatsApp (solo números, con código de área. Ej: 5491155551234)" />
       <button onClick={guardar} className={btn}>Guardar</button> <span className="text-sm text-zinc-400">{msg}</span>
-      <div className="pt-4"><Emisor canalId={canal.id} onCambio={onGuardado} /></div>
+      <VivoConfig canal={canal} onGuardado={onGuardado} />
+    </div>
+  )
+}
+
+function VivoConfig({ canal, onGuardado }: { canal: Canal; onGuardado: () => void }) {
+  const [modo, setModo] = useState<'propio' | 'externo'>(canal.vivo_modo || 'propio')
+  const [url, setUrl] = useState(canal.vivo_url || '')
+  const [usados, setUsados] = useState(0)
+  const [msg, setMsg] = useState('')
+  const valido = typeof location !== 'undefined' ? !!embedUrl(url, location.hostname) : true
+
+  useEffect(() => {
+    supabase.from('vivos').select('inicio,fin').eq('canal_id', canal.id).order('inicio', { ascending: false }).limit(500)
+      .then(({ data }) => setUsados(minutosUsados(data || [])))
+  }, [canal.id, canal.en_vivo])
+
+  async function guardarModo(m: 'propio' | 'externo', nuevaUrl = url) {
+    setModo(m)
+    const { error } = await supabase.from('canales').update({ vivo_modo: m, vivo_url: nuevaUrl || null }).eq('id', canal.id)
+    setMsg(error ? error.message : 'Guardado ✓'); onGuardado()
+  }
+
+  const tope = HORAS_VIVO_GRATIS * 60
+  const card = (activo: boolean) => `p-3 rounded-xl border text-left text-sm ${activo ? 'border-brand bg-brand/10' : 'border-white/10 bg-white/5'}`
+
+  return (
+    <div className="pt-4 space-y-3">
+      <div className="font-semibold">📡 ¿Cómo querés transmitir?</div>
+      <div className="grid sm:grid-cols-2 gap-2">
+        <button type="button" onClick={() => guardarModo('externo')} className={card(modo === 'externo')}>
+          <b>Por YouTube / Facebook / Twitch / Kick</b>
+          <div className="text-xs text-zinc-400 mt-1">Sin límite de horas y gratis. Transmitís en esa plataforma y se ve acá adentro, junto a tu tienda y el chat. Tiene las reglas de esa plataforma.</div>
+        </button>
+        <button type="button" onClick={() => guardarModo('propio')} className={card(modo === 'propio')}>
+          <b>Directo en VivoLocal</b>
+          <div className="text-xs text-zinc-400 mt-1">Más libertad: sin depender de las reglas de otra plataforma (siempre dentro de la ley). Tenés {HORAS_VIVO_GRATIS} horas gratis por mes.</div>
+        </button>
+      </div>
+
+      {modo === 'externo' ? (
+        <div className="space-y-2 p-4 rounded-xl bg-white/5 border border-white/10">
+          <input value={url} onChange={(e) => setUrl(e.target.value)} className={input} placeholder="Pegá el link de tu vivo (YouTube, Facebook, Twitch o Kick)" />
+          {url && !valido && <p className="text-xs text-amber-400">Ese link no es de una plataforma compatible.</p>}
+          <div className="flex gap-2 items-center flex-wrap">
+            <button onClick={() => guardarModo('externo', url)} disabled={!valido} className={btn}>Guardar link</button>
+            <button
+              onClick={async () => { await supabase.from('canales').update({ en_vivo: !canal.en_vivo, vivo_url: url || null, vivo_modo: 'externo' }).eq('id', canal.id); onGuardado() }}
+              disabled={!valido || !url}
+              className={`${canal.en_vivo ? 'bg-zinc-700' : 'bg-green-600 hover:bg-green-700'} px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50`}
+            >{canal.en_vivo ? 'Terminar vivo' : 'Marcar como EN VIVO'}</button>
+            <span className="text-sm text-zinc-400">{msg}</span>
+          </div>
+          <p className="text-xs text-zinc-500">Empezá tu vivo en esa plataforma y, cuando esté al aire, tocá &ldquo;Marcar como EN VIVO&rdquo;.</p>
+        </div>
+      ) : (
+        <>
+          <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-sm">
+            <div className="flex justify-between"><span>Horas usadas este mes</span><b>{(usados / 60).toFixed(1)} / {HORAS_VIVO_GRATIS} h</b></div>
+            <div className="h-2 rounded bg-black/40 mt-2 overflow-hidden"><div className={`h-full ${usados >= tope ? 'bg-red-500' : 'bg-brand'}`} style={{ width: `${Math.min(100, (usados / tope) * 100)}%` }} /></div>
+            {usados >= tope && <p className="text-xs text-red-400 mt-2">Llegaste al límite. Podés transmitir por YouTube, Facebook o Twitch sin límite.</p>}
+          </div>
+          <Emisor canalId={canal.id} onCambio={onGuardado} />
+        </>
+      )}
     </div>
   )
 }

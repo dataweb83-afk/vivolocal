@@ -1,5 +1,23 @@
 export const COMISION = 0.08 // 8% para la plataforma
 
+// Horas de transmisión propia (LiveKit) gratis por canal y por mes. Protege el cupo de LiveKit.
+export const HORAS_VIVO_GRATIS = 20
+export const MAX_HORAS_POR_VIVO = 6 // si alguien se olvida de cortar, se cuenta como máximo esto
+
+// Minutos usados este mes (UTC) a partir de los registros de vivos
+export function minutosUsados(vivos: { inicio: string; fin: string | null }[], ahora = Date.now()) {
+  const d = new Date(ahora)
+  const inicioMes = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)
+  let ms = 0
+  for (const v of vivos) {
+    const ini = Math.max(new Date(v.inicio).getTime(), inicioMes)
+    const tope = new Date(v.inicio).getTime() + MAX_HORAS_POR_VIVO * 3600_000
+    const fin = Math.min(v.fin ? new Date(v.fin).getTime() : ahora, tope)
+    if (fin > ini) ms += fin - ini
+  }
+  return Math.round(ms / 60000)
+}
+
 export type Canal = {
   id: string
   slug: string
@@ -13,6 +31,8 @@ export type Canal = {
   formas_pago: string[]
   alias_transferencia: string | null
   billeteras: string | null
+  vivo_modo: 'propio' | 'externo'
+  vivo_url: string | null
 }
 
 export type Producto = {

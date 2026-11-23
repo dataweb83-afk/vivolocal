@@ -160,3 +160,20 @@ grant insert on public.mensajes, public.denuncias to anon;
 
 -- Migración para proyectos ya creados: billeteras virtuales (Lemon, Ualá, etc.)
 alter table canales add column if not exists billeteras text;
+
+-- Modo de vivo: 'propio' (LiveKit, con tope de horas) o 'externo' (YouTube/Facebook/Twitch/Kick incrustado, costo cero)
+alter table canales add column if not exists vivo_modo text not null default 'propio' check (vivo_modo in ('propio','externo'));
+alter table canales add column if not exists vivo_url text;
+
+-- Registro de transmisiones propias, para limitar las horas gratis por mes
+create table if not exists vivos (
+  id uuid primary key default gen_random_uuid(),
+  canal_id uuid references canales(id) on delete cascade not null,
+  inicio timestamptz not null default now(),
+  fin timestamptz
+);
+alter table vivos enable row level security;
+create policy "dueño ve sus vivos" on vivos for select
+  using (exists (select 1 from canales c where c.id = canal_id and c.owner_id = auth.uid()));
+grant select on public.vivos to authenticated;
+grant all on public.vivos to service_role;

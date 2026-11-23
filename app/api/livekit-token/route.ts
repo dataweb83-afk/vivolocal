@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
 import { AccessToken } from 'livekit-server-sdk'
 import { supabaseAdmin } from '@/lib/supabase'
+import { HORAS_VIVO_GRATIS, minutosUsados } from '@/lib/data'
 
 const err = (error: string, status = 400) => NextResponse.json({ error }, { status })
 
-// modo "ver": cualquiera, solo suscripción. modo "emitir": solo el dueño del canal (verificado con su sesión).
+// modo "ver": cualquiera, solo suscripción. modo "emitir": solo el dueño del canal (verificado con su sesión)
+// y mientras no haya agotado sus horas gratis del mes.
 export async function POST(req: Request) {
   const { LIVEKIT_API_KEY: key, LIVEKIT_API_SECRET: secret, NEXT_PUBLIC_LIVEKIT_URL: url } = process.env
   if (!key || !secret || !url) return err('El video en vivo todavía no está configurado', 503)
@@ -21,6 +23,16 @@ export async function POST(req: Request) {
     const jwt = req.headers.get('authorization')?.replace('Bearer ', '')
     const { data } = jwt ? await db.auth.getUser(jwt) : { data: { user: null } }
     if (!data.user || data.user.id !== canal.owner_id) return err('No autorizado', 403)
+
+    // Cerrar vivos que quedaron abiertos y chequear el tope mensual
+    const { data: vivos } = await db.from('vivos').select('id,inicio,fin').eq('canal_id', canal.id).order('inicio', { ascending: false }).limit(500)
+    const abiertos = (vivos || []).filter((v) => !v.fin).map((v) => v.id)
+    if (abiertos.length) await db.from('vivos').update({ fin: new Date().toISOString() }).in('id', abiertos)
+    const usados = minutosUsados((vivos || []).map((v) => ({ inicio: v.inicio, fin: v.fin ?? new Date().toISOString() })))
+    if (usados >= HORAS_VIVO_GRATIS * 60) {
+      return err(`Llegaste al límite de ${HORAS_VIVO_GRATIS} horas gratis de transmisión directa este mes. Podés transmitir por YouTube, Facebook o Twitch sin límite, o esperar al mes que viene.`, 429)
+    }
+    await db.from('vivos').insert({ canal_id: canal.id })
     identity = `emisor-${canal.id}`
     puedeEmitir = true
   }

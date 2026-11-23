@@ -34,6 +34,8 @@ export default function Emisor({ canalId, onCambio }: { canalId: string; onCambi
 
   async function terminar() {
     room.current?.disconnect(); room.current = null
+    const { data } = await supabase.auth.getSession()
+    await fetch('/api/vivo-fin', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session?.access_token}` }, body: JSON.stringify({ canalId }) })
     await supabase.from('canales').update({ en_vivo: false }).eq('id', canalId)
     setActivo(false); onCambio()
   }

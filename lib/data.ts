@@ -12,6 +12,7 @@ export type Canal = {
   en_vivo: boolean
   formas_pago: string[]
   alias_transferencia: string | null
+  billeteras: string | null
 }
 
 export type Producto = {
@@ -38,7 +39,8 @@ export type Publicacion = {
 }
 
 export const FORMAS_PAGO: Record<string, string> = {
-  mercadopago: 'MercadoPago (tarjeta / dinero en cuenta)',
+  mercadopago: 'Tarjeta Visa / Mastercard o dinero en cuenta (MercadoPago)',
+  billetera: 'Billetera virtual (Lemon, Ualá, Belo, etc.)',
   efectivo: 'Efectivo al recibir',
   transferencia: 'Transferencia bancaria',
   retiro: 'Retiro en el local (pago ahí)',

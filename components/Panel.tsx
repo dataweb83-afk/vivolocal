@@ -282,6 +282,7 @@ function ZonasPagos({ canal, onGuardado }: { canal: Canal; onGuardado: () => voi
   const [z, setZ] = useState({ nombre: '', costo: '0', demora: '' })
   const [pagos, setPagos] = useState<string[]>(canal.formas_pago || [])
   const [alias, setAlias] = useState(canal.alias_transferencia || '')
+  const [billeteras, setBilleteras] = useState(canal.billeteras || '')
   const [mpToken, setMpToken] = useState('')
   const [msg, setMsg] = useState('')
 
@@ -298,7 +299,7 @@ function ZonasPagos({ canal, onGuardado }: { canal: Canal; onGuardado: () => voi
   }
 
   async function guardarPagos() {
-    const { error } = await supabase.from('canales').update({ formas_pago: pagos, alias_transferencia: alias || null }).eq('id', canal.id)
+    const { error } = await supabase.from('canales').update({ formas_pago: pagos, alias_transferencia: alias || null, billeteras: billeteras.trim() || null }).eq('id', canal.id)
     if (!error && mpToken) {
       const r = await supabase.from('canal_secretos').upsert({ canal_id: canal.id, mp_access_token: mpToken })
       if (r.error) return setMsg(r.error.message)
@@ -332,6 +333,12 @@ function ZonasPagos({ canal, onGuardado }: { canal: Canal; onGuardado: () => voi
             <input type="checkbox" checked={pagos.includes(k)} onChange={(e) => setPagos(e.target.checked ? [...pagos, k] : pagos.filter((x) => x !== k))} /> {l}
           </label>
         ))}
+        {pagos.includes('billetera') && (
+          <div>
+            <textarea value={billeteras} onChange={(e) => setBilleteras(e.target.value)} rows={3} className={input} placeholder={'Una por línea. Ej:\nLemon: $tuusuario\nUalá: tu.alias\nBelo: tu.alias'} />
+            <p className="text-xs text-zinc-500 mt-1">El comprador te paga desde su app y te avisa. Confirmás el pago vos, en Pedidos.</p>
+          </div>
+        )}
         {pagos.includes('transferencia') && <input value={alias} onChange={(e) => setAlias(e.target.value)} className={input} placeholder="Alias o CBU para transferencias" />}
         {pagos.includes('mercadopago') && (
           <input value={mpToken} onChange={(e) => setMpToken(e.target.value)} className={input} placeholder="Access Token de tu MercadoPago (queda privado)" type="password" />

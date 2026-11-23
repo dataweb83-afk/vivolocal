@@ -141,6 +141,13 @@ function Checkout({ canal, zonas, compra, onCerrar }: { canal: Canal; zonas: Zon
             <div className="text-4xl">✅</div>
             <h3 className="font-bold text-lg">¡Pedido enviado!</h3>
             <p className="text-sm text-zinc-400">Total: {pesos(info.total)}. {info.pago === 'transferencia' && canal.alias_transferencia ? `Transferí a: ${canal.alias_transferencia}. ` : ''}El vendedor se va a contactar con vos.</p>
+            {info.pago === 'billetera' && canal.billeteras && (
+              <div className="text-left text-sm bg-white/5 rounded-lg p-3">
+                <div className="text-xs text-zinc-400 mb-1">Pagá desde tu app a:</div>
+                <pre className="whitespace-pre-wrap font-sans">{canal.billeteras}</pre>
+                <div className="text-xs text-zinc-500 mt-2">Cuando pagues, avisale al vendedor por WhatsApp para que confirme tu pedido.</div>
+              </div>
+            )}
             {canal.whatsapp && <a href={`https://wa.me/${canal.whatsapp}`} target="_blank" rel="noreferrer" className="inline-block bg-green-600 px-4 py-2 rounded-full text-sm font-semibold">Escribirle por WhatsApp</a>}
             <button onClick={onCerrar} className="block mx-auto text-sm underline text-zinc-400">Cerrar</button>
           </div>
@@ -162,6 +169,13 @@ function Checkout({ canal, zonas, compra, onCerrar }: { canal: Canal; zonas: Zon
                 </select>
                 <input required value={f.direccion} onChange={(e) => setF({ ...f, direccion: e.target.value })} className={input} placeholder="Dirección de entrega" />
               </>
+            )}
+            {f.pago === 'mercadopago' && (
+              <div className="flex gap-1.5 items-center text-[10px] font-bold text-zinc-300">
+                <span className="px-2 py-0.5 rounded bg-blue-700">VISA</span>
+                <span className="px-2 py-0.5 rounded bg-orange-600">MASTERCARD</span>
+                <span className="text-zinc-500 font-normal">crédito, débito o dinero en cuenta</span>
+              </div>
             )}
             <div className="flex justify-between font-bold pt-2"><span>Total</span><span>{pesos(total)}</span></div>
             {error && <p className="text-sm text-red-400">{error}</p>}

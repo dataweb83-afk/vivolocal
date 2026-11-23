@@ -13,6 +13,7 @@ create table if not exists canales (
   en_vivo boolean default false,
   formas_pago text[] default '{}',        -- mercadopago, efectivo, transferencia, retiro
   alias_transferencia text,
+  billeteras text,                        -- una por línea: "Lemon: $usuario", "Ualá: alias"
   acepto_terminos_at timestamptz not null default now(),
   suspendido boolean default false,
   creado timestamptz default now()
@@ -156,3 +157,6 @@ alter default privileges in schema public grant select, insert, update, delete o
 alter default privileges in schema public grant all on tables to service_role;
 revoke all on table public.canal_secretos from anon;
 grant insert on public.mensajes, public.denuncias to anon;
+
+-- Migración para proyectos ya creados: billeteras virtuales (Lemon, Ualá, etc.)
+alter table canales add column if not exists billeteras text;

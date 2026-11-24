@@ -1,7 +1,7 @@
 export const COMISION = 0.08 // 8% para la plataforma
 
 // Horas de transmisión propia (LiveKit) gratis por canal y por mes. Protege el cupo de LiveKit.
-export const HORAS_VIVO_GRATIS = 20
+export const HORAS_VIVO_GRATIS = 10
 // Espectadores a la vez en el video propio (cada uno cuesta ancho de banda). Para más público: YouTube/TikTok/etc.
 export const MAX_ESPECTADORES = 10
 export const MAX_HORAS_POR_VIVO = 6 // si alguien se olvida de cortar, se cuenta como máximo esto

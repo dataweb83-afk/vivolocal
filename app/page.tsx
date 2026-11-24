@@ -35,7 +35,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
             Tu tienda, <span className="bg-gradient-to-r from-rose-400 to-orange-300 bg-clip-text text-transparent">en vivo</span>.<br />Vendé mientras te miran.
           </h1>
           <p className="mt-4 text-zinc-300 text-lg max-w-2xl mx-auto">
-            Armá tu página de ventas en minutos, mostrá tus productos en directo y cobrá con tarjeta, transferencia, Lemon o efectivo. Sin comisiones por ahora.
+            Armá tu página de ventas en minutos, mostrá tus productos en directo y cobrá con tarjeta, transferencia, Lemon o efectivo. Sin comisión por venta y con el primer mes gratis.
           </p>
           <div className="mt-7 flex flex-wrap gap-3 justify-center">
             <Link href="/panel" className="bg-brand hover:bg-brand-dark px-7 py-3.5 rounded-full font-bold text-lg shadow-lg shadow-rose-900/40">Crear mi tienda gratis</Link>
@@ -101,7 +101,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
       <section className="max-w-5xl mx-auto px-4 mt-16">
         <div className="rounded-3xl p-8 sm:p-12 text-center bg-gradient-to-br from-rose-600 to-orange-500">
           <h2 className="text-3xl sm:text-4xl font-extrabold">Empezá a vender hoy</h2>
-          <p className="mt-2 text-white/90 max-w-xl mx-auto">Tu tienda online lista en minutos, sin costos de arranque y sin que nadie te censure.</p>
+          <p className="mt-2 text-white/90 max-w-xl mx-auto">Tu tienda online lista en minutos, primer mes gratis y sin comisión por venta.</p>
           <Link href="/panel" className="inline-block mt-6 bg-white text-black px-8 py-3.5 rounded-full font-extrabold text-lg">Crear mi tienda gratis</Link>
         </div>
       </section>

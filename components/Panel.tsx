@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { supabase, supabaseListo } from '@/lib/supabase'
 import { subirArchivo } from '@/lib/subir'
 import Emisor from './Emisor'
-import { embedUrl } from '@/lib/embed'
+import { vivoExterno } from '@/lib/embed'
+import QRCode from 'qrcode'
 import { COBRO_ALIAS, COBRO_WHATSAPP, COLORES, DIAS_ABONO, PRECIO_ABONO, PRECIO_PACK, HORAS_PACK_VIDEO, HORAS_VIVO_GRATIS, RUBROS, colorSeguro, estadoPlan, horasTope, minutosUsados, textoSobre } from '@/lib/data'
 import { FORMAS_PAGO, pesos, slugify, type Canal, type Producto, type Publicacion, type Zona } from '@/lib/data'
 
@@ -224,6 +225,11 @@ function Inicio({ canal, irA }: { canal: Canal; irA: (t: Tab) => void }) {
   const hechos = pasos.filter((p) => p.ok).length
   const pct = Math.round((hechos / pasos.length) * 100)
   const url = typeof location !== 'undefined' ? `${location.origin}/${canal.slug}` : `/${canal.slug}`
+  const [qr, setQr] = useState('')
+  useEffect(() => {
+    if (typeof location === 'undefined') return
+    QRCode.toDataURL(`${location.origin}/${canal.slug}`, { width: 480, margin: 2, color: { dark: '#111111', light: '#ffffff' } }).then(setQr).catch(() => {})
+  }, [canal.slug])
 
   return (
     <div className="space-y-5">
@@ -258,6 +264,20 @@ function Inicio({ canal, irA }: { canal: Canal; irA: (t: Tab) => void }) {
         <div className="flex gap-3 mt-3 text-sm">
           <Link href={`/${canal.slug}`} target="_blank" className="underline text-brand">Ver mi página</Link>
           <a href={`https://wa.me/?text=${encodeURIComponent(`Mirá mi tienda: ${url}`)}`} target="_blank" rel="noreferrer" className="underline text-green-400">Compartir por WhatsApp</a>
+        </div>
+        {qr && (
+          <div className="mt-4 flex items-center gap-4 p-3 rounded-xl bg-white/5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={qr} alt={`QR de ${canal.nombre}`} className="w-28 h-28 rounded-lg bg-white" />
+            <div className="text-sm">
+              <div className="font-semibold">Tu código QR</div>
+              <p className="text-xs text-zinc-400 mb-2">Ponelo en tu local, tus bolsas o tus videos. Quien lo escanea entra directo a tu tienda.</p>
+              <a href={qr} download={`qr-${canal.slug}.png`} className="text-brand underline text-sm">Descargar QR</a>
+            </div>
+          </div>
+        )}
+        <div className="mt-4 p-3 rounded-xl bg-white/5 text-xs text-zinc-300">
+          <b>💡 Vendé durante tus vivos de TikTok o Instagram:</b> transmití ahí con tu audiencia, decí &ldquo;mi tienda está en el link de mi bio&rdquo; y poné este link. La gente compra en tu tienda, con todos tus medios de pago.
         </div>
       </div>
     </div>
@@ -382,7 +402,7 @@ function VivoConfig({ canal, onGuardado }: { canal: Canal; onGuardado: () => voi
   const [url, setUrl] = useState(canal.vivo_url || '')
   const [usados, setUsados] = useState(0)
   const [msg, setMsg] = useState('')
-  const valido = typeof location !== 'undefined' ? !!embedUrl(url, location.hostname) : true
+  const valido = typeof location !== 'undefined' ? !!vivoExterno(url, location.hostname) : true
 
   const [horasTotal, setHorasTotal] = useState(HORAS_VIVO_GRATIS)
 
@@ -407,8 +427,8 @@ function VivoConfig({ canal, onGuardado }: { canal: Canal; onGuardado: () => voi
       <div className="font-semibold">📡 ¿Cómo querés transmitir?</div>
       <div className="grid sm:grid-cols-2 gap-2">
         <button type="button" onClick={() => guardarModo('externo')} className={card(modo === 'externo')}>
-          <b>Por YouTube / Facebook / Twitch / Kick</b>
-          <div className="text-xs text-zinc-400 mt-1">Sin límite de horas y gratis. Transmitís en esa plataforma y se ve acá adentro, junto a tu tienda y el chat. Tiene las reglas de esa plataforma.</div>
+          <b>Por YouTube, Facebook, TikTok, Instagram, Twitch o Kick</b>
+          <div className="text-xs text-zinc-400 mt-1">Sin límite de horas ni de público, y gratis. Transmitís en esa red con tu audiencia y la gente compra en tu tienda de acá. Tiene las reglas de esa red.</div>
         </button>
         <button type="button" onClick={() => guardarModo('propio')} className={card(modo === 'propio')}>
           <b>Directo en VivoLocal</b>
@@ -418,7 +438,7 @@ function VivoConfig({ canal, onGuardado }: { canal: Canal; onGuardado: () => voi
 
       {modo === 'externo' ? (
         <div className="space-y-2 p-4 rounded-xl bg-white/5 border border-white/10">
-          <input value={url} onChange={(e) => setUrl(e.target.value)} className={input} placeholder="Pegá el link de tu vivo (YouTube, Facebook, Twitch o Kick)" />
+          <input value={url} onChange={(e) => setUrl(e.target.value)} className={input} placeholder="Pegá el link de tu vivo (YouTube, Facebook, TikTok, Instagram, Twitch o Kick)" />
           {url && !valido && <p className="text-xs text-amber-400">Ese link no es de una plataforma compatible.</p>}
           <div className="flex gap-2 items-center flex-wrap">
             <button onClick={() => guardarModo('externo', url)} disabled={!valido} className={btn}>Guardar link</button>
@@ -429,7 +449,7 @@ function VivoConfig({ canal, onGuardado }: { canal: Canal; onGuardado: () => voi
             >{canal.en_vivo ? 'Terminar vivo' : 'Marcar como EN VIVO'}</button>
             <span className="text-sm text-zinc-400">{msg}</span>
           </div>
-          <p className="text-xs text-zinc-500">Empezá tu vivo en esa plataforma y, cuando esté al aire, tocá &ldquo;Marcar como EN VIVO&rdquo;.</p>
+          <p className="text-xs text-zinc-500">Empezá tu vivo en esa red y, cuando esté al aire, tocá &ldquo;Marcar como EN VIVO&rdquo;. En YouTube, Facebook, Twitch y Kick el video se ve dentro de tu página; en TikTok e Instagram aparece un botón para ir a verlo. <b>Poné el link de tu tienda en tu bio o decilo en el vivo</b> para que la gente compre.</p>
         </div>
       ) : (
         <>

@@ -1,3 +1,20 @@
+export type VivoExterno = { tipo: 'embed'; src: string } | { tipo: 'link'; url: string; red: string }
+
+// Vivo externo: se muestra incrustado (YouTube, Facebook, Twitch, Kick) o, si la red no permite incrustar
+// (TikTok, Instagram), como botón que lleva al vivo. La compra siempre ocurre en la tienda de VivoLocal.
+export function vivoExterno(link: string | null | undefined, hostname: string): VivoExterno | null {
+  const e = embedUrl(link, hostname)
+  if (e) return { tipo: 'embed', src: e }
+  if (!link) return null
+  let u: URL
+  try { u = new URL(link.trim()) } catch { return null }
+  if (u.protocol !== 'https:') return null
+  const h = u.hostname.toLowerCase()
+  if (h === 'tiktok.com' || h.endsWith('.tiktok.com')) return { tipo: 'link', url: u.toString(), red: 'TikTok' }
+  if (h === 'instagram.com' || h.endsWith('.instagram.com')) return { tipo: 'link', url: u.toString(), red: 'Instagram' }
+  return null
+}
+
 // Convierte un link de vivo en una URL de reproductor incrustable. Solo plataformas conocidas (nunca un iframe a cualquier sitio).
 export function embedUrl(link: string | null | undefined, hostname: string): string | null {
   if (!link) return null

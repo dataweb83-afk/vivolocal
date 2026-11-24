@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { embedUrl } from '@/lib/embed'
+import { vivoExterno } from '@/lib/embed'
 import { supabase } from '@/lib/supabase'
 import Chat from './Chat'
 import VideoVivo from './VideoVivo'
@@ -22,7 +22,7 @@ export default function CanalVista({ canal, productos, zonas, publicaciones }: {
   const [host, setHost] = useState('')
   const [copiado, setCopiado] = useState(false)
   useEffect(() => { setHost(location.hostname) }, [])
-  const src = host ? embedUrl(canal.vivo_url, host) : null
+  const ext = host ? vivoExterno(canal.vivo_url, host) : null
   const pausa = !planVigente(canal) // abono vencido: la tienda queda en pausa
   const aceptaMP = canal.formas_pago.includes('mercadopago') && !pausa
   const puedeComprar = canal.formas_pago.length > 0 && !pausa
@@ -98,7 +98,18 @@ export default function CanalVista({ canal, productos, zonas, publicaciones }: {
           <section className="mt-6 grid lg:grid-cols-[1fr_330px] gap-3">
             <div className="aspect-video rounded-2xl bg-black border border-white/10 relative overflow-hidden flex items-center justify-center shadow-2xl">
               {canal.vivo_modo === 'externo'
-                ? (src ? <iframe src={src} className="absolute inset-0 w-full h-full" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen title={`Vivo de ${canal.nombre}`} /> : <p className="text-zinc-500 text-sm">Cargando el vivo...</p>)
+                ? (ext?.tipo === 'embed'
+                    ? <iframe src={ext.src} className="absolute inset-0 w-full h-full" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen title={`Vivo de ${canal.nombre}`} />
+                    : ext?.tipo === 'link'
+                      ? (
+                        <div className="text-center px-6">
+                          <div className="text-5xl mb-3">📱</div>
+                          <div className="font-extrabold text-xl">Estamos en vivo en {ext.red}</div>
+                          <p className="text-sm text-zinc-400 mt-1 mb-4">Mirá el vivo allá y comprá desde acá, mientras mostramos los productos.</p>
+                          <a href={ext.url} target="_blank" rel="noreferrer" className="inline-block bg-[var(--c)] text-[var(--ct)] font-bold px-6 py-3 rounded-full hover:brightness-110">🔴 Mirar el vivo en {ext.red}</a>
+                        </div>
+                      )
+                      : <p className="text-zinc-500 text-sm">Cargando el vivo...</p>)
                 : <VideoVivo canalId={canal.id} />}
             </div>
             <Chat canalId={canal.id} />

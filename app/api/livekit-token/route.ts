@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { AccessToken } from 'livekit-server-sdk'
+import { AccessToken, RoomServiceClient } from 'livekit-server-sdk'
 import { supabaseAdmin } from '@/lib/supabase'
-import { horasTope, minutosUsados, planVigente } from '@/lib/data'
+import { MAX_ESPECTADORES, horasTope, minutosUsados, planVigente } from '@/lib/data'
 
 const err = (error: string, status = 400) => NextResponse.json({ error }, { status })
 
@@ -36,6 +36,10 @@ export async function POST(req: Request) {
       return err(`Llegaste al límite de ${tope} horas de transmisión directa este mes. Para seguir transmitiendo en VivoLocal sumá un pack de video desde Mi plan, o transmití por YouTube, Facebook u otra plataforma sin límite.`, 429)
     }
     await db.from('vivos').insert({ canal_id: canal.id })
+    // La sala se crea con tope de participantes: el emisor + MAX_ESPECTADORES. Si no se puede crear, el token igual funciona.
+    try {
+      await new RoomServiceClient(url.replace(/^wss:/, 'https:'), key, secret).createRoom({ name: canal.id, maxParticipants: MAX_ESPECTADORES + 1, emptyTimeout: 120 })
+    } catch {}
     identity = `emisor-${canal.id}`
     puedeEmitir = true
   }
